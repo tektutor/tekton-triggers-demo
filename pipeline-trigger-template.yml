@@ -2,7 +2,7 @@
 apiVersion: triggers.tekton.dev/v1alpha1
 kind: TriggerTemplate
 metadata:
-  name: tekton-pipeline-trigger-template
+  name: tektutor-pipeline-trigger-template
 spec:
   params:
     - name: gitrevision

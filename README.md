@@ -62,3 +62,5 @@ git clone http://gitea-demo.example.com/jegan/tekton-triggers-demo.git
 cd tekton-triggers-demo
 oc apply -f java-tekton-cicd-pipeline.yml 
 ```
+
+Let's trigger

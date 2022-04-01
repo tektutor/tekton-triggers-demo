@@ -1,0 +1,13 @@
+---
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: EventListener
+metadata:
+  name: tektutor-gitea-webhook
+spec:
+  serviceAccountName: pipeline
+  triggers:
+    - name: tekton-greeter-webhook
+      bindings:
+        - ref: tektutor-triggerbinding
+      template:
+        ref: tektutor-pipline-trigger-template

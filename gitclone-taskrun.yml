@@ -1,0 +1,49 @@
+# Reserve 500 MB disk space for Persistent Volume
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: openshift-tekton-pv
+  labels:
+     app: tekton
+spec:
+  capacity:
+    storage: 500Mi
+  volumeMode: Filesystem
+  accessModes:
+  - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain 
+  nfs: 
+    server: "192.168.1.80"
+    path: "/mnt/maven"
+---
+# Request for 500 disk space from one of the Persistent Volume
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: openshift-tekton-pvc
+  labels:
+     app: tekton
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 500Mi
+---
+apiVersion: tekton.dev/v1beta1
+kind: TaskRun
+metadata:
+  name: github-clone-taskrun
+spec:
+  taskRef:
+    kind: Task
+    name: git-clone
+  params:
+    - name: url 
+      value: 'https://github.com/tektutor/spring-ms.git'
+    - name: revision
+      value: master
+  workspaces:
+    - name: output
+      persistentVolumeClaim:
+        claimName: openshift-tekton-pvc

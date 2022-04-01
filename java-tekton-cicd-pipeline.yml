@@ -1,0 +1,159 @@
+# Reserve 500 MB disk space for Persistent Volume
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: tektutor-tekton-pv
+  labels:
+    owner: jegan
+spec:
+  capacity:
+    storage: 500Mi
+  volumeMode: Filesystem
+  accessModes:
+  - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain 
+  nfs: 
+    server: "192.168.1.80"
+    path: "/mnt/maven"
+---
+# Request for 500 disk space from one of the Persistent Volume
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tektutor-tekton-pvc
+  labels:
+    owner: jegan
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 500Mi
+---
+# Create a pipeline
+# For consulting/training, you can approach me - jegan@tektutor.org
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: java-tekton-cicd-pipeline
+spec:
+  tasks:
+    - name: clone-git-repo
+      params:
+        - name: url
+          value: 'https://github.com/tektutor/hello-spring-boot.git'
+        - name: revision
+          value: main
+      taskRef:
+        kind: Task
+        name: git-clone
+      workspaces:
+        - name: output
+          workspace: source-code
+
+    # Task that compiles your tektutor project
+    - name: compile
+      params:
+        - name: MAVEN_IMAGE
+          value: >-
+            gcr.io/cloud-builders/mvn@sha256:57523fc43394d6d9d2414ee8d1c85ed7a13460cbb268c3cd16d28cfb3859e641
+        - name: GOALS
+          value:
+            - -Dmaven.repo.local=$(workspaces.maven-settings.path)
+            - compile
+      runAfter:
+        - clone-git-repo
+      taskRef:
+        kind: Task
+        name: maven 
+      workspaces:
+        - name: source
+          workspace: source-code
+        - name: maven-settings
+          workspace: tektutor-repo
+
+    # Task that performs unit-test on your tektutor project
+    - name: test
+      params:
+        - name: MAVEN_IMAGE
+          value: >-
+            gcr.io/cloud-builders/mvn@sha256:57523fc43394d6d9d2414ee8d1c85ed7a13460cbb268c3cd16d28cfb3859e641
+        - name: GOALS
+          value:
+            - -Dmaven.repo.local=$(workspaces.maven-settings.path)
+            - test
+      runAfter:
+        - compile
+      taskRef:
+        kind: Task
+        name: maven 
+      workspaces:
+        - name: source
+          workspace: source-code
+        - name: maven-settings
+          workspace: tektutor-repo
+
+    # Task that packages your unit-tested tektutor project
+    - name: package
+      params:
+        - name: MAVEN_IMAGE
+          value: >-
+            gcr.io/cloud-builders/mvn@sha256:57523fc43394d6d9d2414ee8d1c85ed7a13460cbb268c3cd16d28cfb3859e641
+        - name: GOALS
+          value:
+            - -Dmaven.repo.local=$(workspaces.maven-settings.path)
+            - package
+      runAfter:
+        - test
+      taskRef:
+        kind: Task
+        name: maven 
+      workspaces:
+        - name: source
+          workspace: source-code
+        - name: maven-settings
+          workspace: tektutor-repo
+
+    # Task that installs the packaged binaries into your local tektutor repository
+    - name: install
+      params:
+        - name: MAVEN_IMAGE
+          value: >-
+            gcr.io/cloud-builders/mvn@sha256:57523fc43394d6d9d2414ee8d1c85ed7a13460cbb268c3cd16d28cfb3859e641
+        - name: GOALS
+          value:
+            - -Dmaven.repo.local=$(workspaces.maven-settings.path)
+            - install
+      runAfter:
+        - package
+      taskRef:
+        kind: Task
+        name: maven 
+      workspaces:
+        - name: source
+          workspace: source-code
+        - name: maven-settings
+          workspace: tektutor-repo
+  workspaces:
+    - name: source-code
+    - name: tektutor-repo
+
+---
+# PipelineRun
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  generateName: java-tekton-cicd-pipeline-run-
+spec:
+  pipelineRef:
+    name: java-tekton-cicd-pipeline
+  serviceAccountName: default
+  workspaces:
+    - name: source-code
+      persistentVolumeClaim:
+        claimName: tektutor-tekton-pvc
+      subPath: source
+    - name: tektutor-repo 
+      persistentVolumeClaim:
+        claimName: tektutor-tekton-pvc
+      subPath: m2

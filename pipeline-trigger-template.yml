@@ -1,0 +1,39 @@
+---
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerTemplate
+metadata:
+  name: tekton-pipeline-trigger-template
+spec:
+  params:
+    - name: gitrevision
+      description: The git revision
+      default: main 
+    - name: gitrepositoryurl
+      description: The git repository url
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1beta1
+      kind: PipelineRun
+      metadata:
+        generateName: java-cicd-pr
+        labels:
+          tekton.dev/pipeline: java-tekton-cicd-pipeline
+      spec:
+        serviceAccountName: pipeline
+        pipelineRef:
+          name: java-tekton-cicd-pipeline
+        params:
+          - name: github-repo-url
+            value: '$(tt.params.gitrepositoryurl)'
+          - name: github-repo-revision
+            value: '$(tt.params.gitrevision)'
+          - name: context-dir
+            value: . 
+        workspaces:
+          - name: maven-settings
+            persistentVolumeClaim:
+              name: tektutor-tekton-pvc 
+            subPath: m2
+          - name: source
+            persistentVolumeClaim:
+              claimName: tektutor-tekton-pvc
+            subPath: source
